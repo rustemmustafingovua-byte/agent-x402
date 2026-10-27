@@ -15,15 +15,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "agent-x402",
       "version": "0.1.0",
-      "transport": { "type": "stdio" },
-      "environmentVariables": [
-        {
-          "name": "GITHUB_TOKEN",
-          "description": "Optional. Raises the GitHub search rate limit and enables code and issue search.",
-          "isRequired": false,
-          "isSecret": true
-        }
-      ]
+      "transport": { "type": "stdio" }
     }
   ]
 }

@@ -15,6 +15,7 @@
 import { createPublicClient, http, erc20Abi, formatUnits } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { base } from "viem/chains"
+import { randomBytes } from "node:crypto"
 
 export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 
@@ -98,7 +99,8 @@ export async function signPayment({ account, asset, to, amount, validAfter, vali
 
 /** Build a random 32-byte nonce. */
 export function makeNonce(address, salt = Date.now()) {
-  const hex = Buffer.from(`${address}:${salt}:${Math.random()}`).toString("hex")
+  const rand = randomBytes(16).toString("hex")
+  const hex = Buffer.from(`${address}:${salt}:${rand}`).toString("hex")
   return "0x" + hex.slice(0, 64).padEnd(64, "0")
 }
 
@@ -126,6 +128,9 @@ export class X402Client {
    * @param {string} [opts.headerName] header used to carry the payment
    */
   constructor(opts = {}) {
+    if (opts.privateKey && !/^0x[0-9a-fA-F]{64}$/.test(opts.privateKey)) {
+      throw new X402Error("privateKey must be a 0x-prefixed 64-hex-character string", "bad_private_key")
+    }
     this.account = opts.privateKey ? privateKeyToAccount(opts.privateKey) : null
     this.policy = opts.policy ?? null
     this.network = opts.network ?? "eip155:8453"
@@ -150,6 +155,10 @@ export class X402Client {
    * @param {boolean} [init.dryRun] parse the 402 but do not pay
    */
   async fetch(url, init = {}) {
+    const parsed = new URL(url)
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new X402Error(`unsupported URL protocol: ${parsed.protocol}`, "bad_url")
+    }
     const method = (init.method || "GET").toUpperCase()
     const headers = { "Content-Type": "application/json", ...(init.headers || {}) }
     const doRequest = async (extra = {}) => {

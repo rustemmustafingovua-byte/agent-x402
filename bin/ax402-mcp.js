@@ -138,7 +138,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const client = new X402Client({ privateKey: w.privateKey, policy: loadPolicy() })
         const res = await client.fetch(args.url, {
           method: (args.method || "GET").toUpperCase(),
-          body: args.method === "POST" ? args.body ?? {} : undefined,
+          body: (args.method || "GET").toUpperCase() === "POST" ? args.body ?? {} : undefined,
           dryRun: true,
         })
         if (!res.requirements) {
