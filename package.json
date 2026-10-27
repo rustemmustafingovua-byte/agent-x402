@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "viem": "^2.57.0"
+    "viem": "^2.57.10"
   },
   "repository": {
     "type": "git",
