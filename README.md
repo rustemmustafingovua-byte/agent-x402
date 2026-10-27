@@ -24,6 +24,14 @@ x402 turns a `402 Payment Required` into a signed USDC transfer. That means an a
 
 `agent-x402` is the missing layer: a client that pays, and a policy that decides whether it may.
 
+## Quick Start
+
+```bash
+git clone https://github.com/rustemmustafingovua-byte/agent-x402.git
+cd agent-x402 && npm install
+npm test
+```
+
 ## Install
 
 ```bash
@@ -66,7 +74,10 @@ console.log(res.paid, res.amountUsd, res.body)
 Rules live in code, outside the model:
 
 | Rule | Example |
-|---|---|
+|
+
+⭐ **Star us on GitHub** — it helps others find the project.
+---|---|
 | daily cap | `dailyUsd: 5` — at most $5 per UTC day |
 | per-request cap | `perRequestUsd: 0.5` — one call may never exceed $0.50 |
 | payment count | `maxPayments: 100` |
@@ -186,6 +197,12 @@ Every tool here is MIT and free. If it saved you time, you can support the work:
 - **GitHub Sponsors:** https://github.com/sponsors/rustemmustafingovua-byte
 
 Paid tiers of the hosted services are billed per call in USDC (x402) — no accounts, no keys.
+
+## Monetization
+
+This project earns through x402 micropayments, API key tiers, and hosted subscriptions. See package.json `funding` field and the live deployment for pay-per-call pricing.
+
+---
 
 ## License
 

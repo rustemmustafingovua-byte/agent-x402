@@ -46,5 +46,10 @@
   "bugs": {
     "url": "https://github.com/rustemmustafingovua-byte/agent-x402/issues"
   },
-  "homepage": "https://github.com/rustemmustafingovua-byte/agent-x402#readme"
+  "homepage": "https://github.com/rustemmustafingovua-byte/agent-x402#readme",
+  "funding": {
+    "custom": [
+      "https://github.com/sponsors/rustemmustafingovua-byte"
+    ]
+  }
 }
