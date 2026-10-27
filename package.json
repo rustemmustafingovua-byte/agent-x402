@@ -36,7 +36,7 @@
     "lint": "node --check src/index.js && node --check bin/ax402.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "viem": "^2.57.0"
   },
   "repository": {
