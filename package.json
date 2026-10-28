@@ -15,24 +15,12 @@
     "node": ">=20"
   },
   "keywords": [
-    "x402",
-    "usdc",
-    "base",
-    "solana",
-    "ai-agents",
-    "micropayments",
-    "crypto",
-    "payments",
-    "mcp"
+    "x402", "usdc", "base", "solana", "ai-agents", "micropayments", "crypto", "payments", "mcp"
   ],
-  "files": [
-    "bin",
-    "src",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["bin", "src", "README.md", "LICENSE"],
   "scripts": {
     "test": "node --test test/*.test.js",
+    "build": "node -e "console.log('No build step required for agent-x402')"",
     "lint": "node --check src/index.js && node --check bin/ax402.js"
   },
   "dependencies": {
