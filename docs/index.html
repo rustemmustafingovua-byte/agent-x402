@@ -1,10 +1,12 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>agent-x402 — Pay per API call in USDC on Base — with a spend policy a prompt injection cannot bypass.</title>
-<meta name="description" content="Pay per API call in USDC on Base — with a spend policy a prompt injection cannot bypass.">
+<title>agent-x402 — Pay per API call in USDC on Base</title>
+<meta name="description" content="Pay per API call in USDC on Base, with a spend policy a prompt injection cannot bypass.">
 <meta property="og:title" content="agent-x402">
-<meta property="og:description" content="Pay per API call in USDC on Base — with a spend policy a prompt injection cannot bypass.">
+<meta property="og:description" content="Pay per API call in USDC on Base, with a spend policy a prompt injection cannot bypass.">
 <meta property="og:image" content="https://raw.githubusercontent.com/rustemmustafingovua-byte/agent-x402/main/docs/social-preview.png">
 <style>
   :root{--accent:#a371f7;--bg:#0a0c10;--panel:#0f141a;--fg:#e6edf3;--muted:#8b949e;--line:#1d222a}
@@ -22,58 +24,57 @@
   .card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--panel)}
   .card b{display:block;margin-bottom:5px}
   .card span{color:var(--muted);font-size:14px}
-  .row{display:grid;grid-template-columns:minmax(190px,auto) 1fr;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
-  .row code{background:#11161d;border:1px solid var(--line);padding:4px 9px;border-radius:7px;font-size:13.5px;white-space:pre-wrap}
-  .row span{color:#b6bec8;font-size:15px}
-  details{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--panel);margin-bottom:8px}
-  summary{cursor:pointer;font-weight:600}
-  details p{margin:10px 0 2px}
+  pre{background:#11161d;border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow:auto;font:13.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   ol{padding-left:20px;color:#b6bec8}
-  ol li{margin:6px 0}
+  ol li{margin:8px 0}
+  a{color:var(--accent)}
   .cta{display:inline-block;background:var(--accent);color:#06120a;font-weight:700;padding:11px 20px;border-radius:10px;text-decoration:none;margin:8px 10px 0 0}
   .cta.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
   footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:#6e7681;font-size:13.5px;display:flex;gap:16px;flex-wrap:wrap}
-</style></head><body><div class="wrap">
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+</style>
+</head>
+<body>
+<div class="wrap">
 <span class="chip">agent-x402</span>
 <h1>Pay per API call in USDC on Base — with a spend policy a prompt injection cannot bypass.</h1>
-<p class="lede">x402 turns a 402 into a signed USDC transfer, which means an agent can buy inference without an account. It also means an agent can spend money. This is the client that pays, and the policy that decides whether it may.</p>
+<p class="lede">An agent can buy an API call without an account. The same agent can also spend the wallet. This client pays, the policy decides whether it may, and the server settles USDC to an address you control.</p>
 <a class="cta" href="https://github.com/rustemmustafingovua-byte/agent-x402">View on GitHub</a>
 <a class="cta ghost" href="https://www.npmjs.com/package/agent-x402">npm</a>
 <a class="cta ghost" href="https://github.com/rustemmustafingovua-byte/agent-x402#readme">README</a>
 
+<h2>Install</h2>
+<pre><code>npm install agent-x402
+ax402 new
+ax402 quote https://pay.example.com/v1/resource
+ax402 pay https://pay.example.com/v1/resource</code></pre>
+<p>Node.js 20+. The buyer wallet is created in <code>~/.config/agent-x402/wallet.json</code> (mode 600). Fund that address with USDC on Base. The private key is never printed.</p>
+
 <h2>What it does</h2>
 <div class="grid">
-<div class="card"><b>x402 v2, exact scheme</b><span>EIP-3009 transferWithAuthorization, USDC on Base, 15-minute validity window.</span></div>
-<div class="card"><b>Spend policy</b><span>Daily cap, per-request cap, payment count, payee allow-list, blocked contracts, per-network cap.</span></div>
-<div class="card"><b>Policy outside the model</b><span>The rules are enforced in code before anything is signed.</span></div>
-<div class="card"><b>Any endpoint</b><span>The client is protocol-level, not vendor-specific.</span></div>
-<div class="card"><b>MCP server</b><span>x402-balance, x402-quote, x402-pay and x402-policy as agent tools.</span></div>
-<div class="card"><b>Audit trail</b><span>Every payment is recorded with its amount, model and time.</span></div>
+<div class="card"><b>x402 v2, exact scheme</b><span>EIP-3009 transferWithAuthorization for USDC on Base mainnet (eip155:8453).</span></div>
+<div class="card"><b>Spend policy</b><span>Daily cap, per-request cap, payment count, payee allow-list, blocked contracts, per-network cap. A failed call does not count.</span></div>
+<div class="card"><b>Policy outside the model</b><span>The rules run in code before anything is signed. Two in-flight payments share one cap.</span></div>
+<div class="card"><b>Seller</b><span>ax402-serve quotes a price and settles through Coinbase's facilitator. The server holds no signing key.</span></div>
 </div>
 
-<h2>Usage</h2>
-<div class="row"><code>Create a wallet</code><span>ax402 new</span></div>
-<div class="row"><code>See the balance</code><span>ax402 balance</span></div>
-<div class="row"><code>Price a call</code><span>ax402 quote https://api.venice.ai/api/v1/chat/completions</span></div>
-<div class="row"><code>Pay for a call</code><span>ax402 pay https://api.venice.ai/api/v1/chat/completions '{"model":"claude-haiku-5-5","messages":[{"role":"user","content":"hi"}]}'</span></div>
-<div class="row"><code>Read the spend</code><span>ax402 policy</span></div>
-
-<h2>How it works</h2>
+<h2>Get paid</h2>
 <ol>
-  <li>Request the endpoint: a 402 comes back with the price, the network and the payee.</li>
-  <li>Check the policy: caps, allow-list and blocked contracts are evaluated before signing.</li>
-  <li>Sign the transfer with EIP-3009 and retry with the payment attached.</li>
-  <li>Record the spend so the daily budget stays honest.</li>
+  <li>Set <code>X402_PAY_TO</code> to a Base address you control. The published donation address is <code>0x8aC6a229f254980CCd3Dd35CF5E1B7c08880B40E</code>.</li>
+  <li>Create a Coinbase Developer Platform API key. Put <code>CDP_API_KEY_ID</code> and <code>CDP_API_KEY_SECRET</code> in the server environment only.</li>
+  <li>Run <code>ax402-serve</code> with <code>X402_FACILITATOR_URL=https://api.cdp.coinbase.com/platform/v2/x402</code>, <code>X402_PRICE_USD</code>, and <code>X402_PUBLIC_URL</code>.</li>
+  <li>Check <code>GET /health</code> reports <code>settlement: facilitator</code>, then pay the route once with a small amount and confirm <code>GET /stats</code> plus the USDC balance.</li>
+  <li>To publish the client: add an npm Automation token as the <code>NPM_TOKEN</code> Actions secret, then push the tag <code>v0.2.0</code>.</li>
 </ol>
+<p>Until the facilitator is configured, the server quotes a price and does not deliver the resource. No payment is submitted.</p>
 
-<h2>Questions</h2>
-(rows) =>
-    rows
-      .map(
-        ([q, a]) =>
-          `<details><summary>${q}</summary><p>${a}</p></details>`,
-      )
-      .join("\n")
+<h2>How a call works</h2>
+<ol>
+  <li>The client requests the URL. A 402 comes back with the price, the network, and the payee.</li>
+  <li>The policy checks caps and allow-lists before the wallet signs.</li>
+  <li>The client signs EIP-3009 and retries with <code>PAYMENT-SIGNATURE</code>.</li>
+  <li>The server verifies the signature, runs the handler, then asks the facilitator to settle. Revenue is USDC at <code>X402_PAY_TO</code>.</li>
+</ol>
 
 <footer>
   <span>agent-x402 · MIT</span>
@@ -81,4 +82,6 @@
   <a href="https://github.com/rustemmustafingovua-byte/agent-x402/issues">issues</a>
   <span>USDC on Base: <code>0x8aC6a229f254980CCd3Dd35CF5E1B7c08880B40E</code></span>
 </footer>
-</div></body></html>
+</div>
+</body>
+</html>

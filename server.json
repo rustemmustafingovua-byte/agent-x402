@@ -3,7 +3,7 @@
   "name": "io.github.rustemmustafingovua-byte/agent-x402",
   "description": "Pay per API call in USDC on Base with x402, with a spend policy enforced outside the model",
   "title": "agent-x402",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "websiteUrl": "https://rustemmustafingovua-byte.github.io/agent-x402/",
   "repository": {
     "url": "https://github.com/rustemmustafingovua-byte/agent-x402",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "agent-x402",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "transport": { "type": "stdio" }
     }
   ]

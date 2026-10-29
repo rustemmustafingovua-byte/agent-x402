@@ -1,45 +1,106 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { SpendPolicy } from "../src/policy.js"
-import { X402Client, pickOption, parseRequirements } from "../src/index.js"
+import { mkdtempSync, readFileSync, statSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { dispatchTool } from "../src/mcp.js"
+import { createPaidServer, createAgentWallet, SpendPolicy } from "../src/index.js"
+import { readWallet } from "../src/config.js"
 
-test("the policy blocks a payment before the client signs", async () => {
-  const policy = new SpendPolicy({ dailyUsd: 0, perRequestUsd: 10 })
-  const client = new X402Client({ policy })
-  const original = globalThis.fetch
-  globalThis.fetch = async () => {
-    const req = { x402Version: 2, accepts: [{ network: "eip155:8453", amount: "5000000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0xabc" }] }
-    return new Response("", { status: 402, headers: { "payment-required": Buffer.from(JSON.stringify(req)).toString("base64") } })
-  }
+function text(result) {
+  return result.content.map((part) => part.text).join("\n")
+}
+
+function listen(server) {
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve(server.address().port))
+  })
+}
+
+test("wallet tool creates a key file and does not return the key", async () => {
+  const home = mkdtempSync(join(tmpdir(), "ax402-mcp-"))
+  const result = await dispatchTool("x402-wallet", {}, { home, balanceOf: async () => 1.25 })
+  assert.equal(result.isError, undefined)
+  const body = JSON.parse(text(result))
+  assert.equal(body.usdc, 1.25)
+  assert.equal("privateKey" in body, false)
+  const stored = readWallet(home)
+  assert.equal(stored.address, body.address)
+  assert.equal(text(result).includes(stored.privateKey), false)
+  assert.equal(statSync(join(home, ".config", "agent-x402", "wallet.json")).mode & 0o777, 0o600)
+})
+
+test("policy set is enforced on the next pay, and a blocked pay does not sign", async () => {
+  const home = mkdtempSync(join(tmpdir(), "ax402-mcp-policy-"))
+  await dispatchTool("x402-wallet", {}, { home, balanceOf: async () => 10 })
+  const updated = await dispatchTool(
+    "x402-policy",
+    { action: "set", daily_usd: 0.001, per_request_usd: 0.001 },
+    { home },
+  )
+  assert.match(text(updated), /policy updated/)
+  assert.equal(statSync(join(home, ".config", "agent-x402", "policy.json")).mode & 0o777, 0o600)
+  const saved = JSON.parse(readFileSync(join(home, ".config", "agent-x402", "policy.json"), "utf8"))
+  assert.equal(saved.dailyUsd, 0.001)
+
+  const seller = createAgentWallet()
+  let settlements = 0
+  const { server } = createPaidServer({
+    payTo: seller.address,
+    priceUsd: 0.05,
+    settle: async () => {
+      settlements += 1
+      return { success: true, transaction: "0x" + "55".repeat(32), network: "eip155:8453" }
+    },
+  })
+  const port = await listen(server)
   try {
-    await assert.rejects(
-      () => client.fetch("https://example.com/x", { method: "POST" }),
-      /policy blocked|insufficient/i,
+    const quote = await dispatchTool(
+      "x402-quote",
+      { url: `http://127.0.0.1:${port}/v1/resource` },
+      { home },
     )
+    assert.match(text(quote), /0\.05/)
+    const pay = await dispatchTool(
+      "x402-pay",
+      { url: `http://127.0.0.1:${port}/v1/resource` },
+      { home, balanceOf: async () => 10 },
+    )
+    assert.equal(pay.isError, true)
+    assert.match(text(pay), /policy/)
+    assert.equal(settlements, 0)
   } finally {
-    globalThis.fetch = original
+    server.closeAllConnections?.()
+    await new Promise((resolve) => server.close(resolve))
   }
 })
 
-test("quote mode never signs and reports the price", async () => {
-  const original = globalThis.fetch
-  globalThis.fetch = async () => {
-    const req = { x402Version: 2, accepts: [{ network: "eip155:8453", amount: "1000", payTo: "0xabc" }] }
-    return new Response("", { status: 402, headers: { "payment-required": Buffer.from(JSON.stringify(req)).toString("base64") } })
-  }
+test("x402-pay persists a successful payment against the policy file", async () => {
+  const home = mkdtempSync(join(tmpdir(), "ax402-mcp-pay-"))
+  await dispatchTool("x402-wallet", {}, { home, balanceOf: async () => 10 })
+  await dispatchTool("x402-policy", { action: "set", daily_usd: 2, per_request_usd: 1 }, { home })
+  const seller = createAgentWallet()
+  const { server } = createPaidServer({
+    payTo: seller.address,
+    priceUsd: 0.2,
+    settle: async () => ({ success: true, transaction: "0x" + "66".repeat(32), network: "eip155:8453" }),
+  })
+  const port = await listen(server)
   try {
-    const client = new X402Client({})
-    const res = await client.fetch("https://example.com/x", { dryRun: true })
-    assert.equal(res.paid, false)
-    assert.equal(res.amountUsd, 0.001)
+    const pay = await dispatchTool(
+      "x402-pay",
+      { url: `http://127.0.0.1:${port}/v1/resource` },
+      { home, balanceOf: async () => 10 },
+    )
+    assert.equal(pay.isError, undefined)
+    assert.match(text(pay), /paid 0\.2 USDC/)
+    const saved = SpendPolicy.restore(
+      JSON.parse(readFileSync(join(home, ".config", "agent-x402", "policy.json"), "utf8")),
+    )
+    assert.equal(saved.report().spentUsd, 0.2)
+    assert.equal(text(pay).includes(readWallet(home).privateKey), false)
   } finally {
-    globalThis.fetch = original
+    server.closeAllConnections?.()
+    await new Promise((resolve) => server.close(resolve))
   }
-})
-
-test("requirements parse and option selection prefers Base", () => {
-  const req = { accepts: [{ network: "solana:5eykt", amount: "1" }, { network: "eip155:8453", amount: "2" }] }
-  const parsed = parseRequirements(Buffer.from(JSON.stringify(req)).toString("base64"))
-  assert.equal(pickOption(parsed, { network: "eip155:8453" }).amount, "2")
-  assert.equal(pickOption(parsed, {}).amount, "2")
 })

@@ -69,14 +69,48 @@ export class SpendPolicy {
     return { allowed: true }
   }
 
-  /** Record a completed payment. */
-  commit(req, now = new Date()) {
-    this._roll(now)
+  _apply(req) {
     const amount = Number(req.amount || 0)
+    const net = req.network || "unknown"
     this.state.spentUsd += amount
     this.state.payments += 1
-    const net = req.network || "unknown"
     this.state.byProvider[net] = (this.state.byProvider[net] || 0) + amount
+    return { amount, net, day: this.state.day }
+  }
+
+  /**
+   * Hold the spend before a payment is submitted.
+   * The returned function releases the hold if settlement does not succeed.
+   * Concurrent calls see the hold, so two in-flight payments cannot both pass the cap.
+   */
+  reserve(req, now = new Date()) {
+    const verdict = this.check(req, now)
+    if (!verdict.allowed) {
+      const error = new Error(verdict.reason || "policy blocked the payment")
+      error.code = "policy"
+      throw error
+    }
+    const held = this._apply(req)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      if (this.state.day !== held.day) return
+      this.state.spentUsd -= held.amount
+      this.state.payments -= 1
+      this.state.byProvider[held.net] = (this.state.byProvider[held.net] || 0) - held.amount
+    }
+  }
+
+  /** Record a completed payment. Refuses to record a payment the policy would block. */
+  commit(req, now = new Date()) {
+    const verdict = this.check(req, now)
+    if (!verdict.allowed) {
+      const error = new Error(verdict.reason || "policy blocked the payment")
+      error.code = "policy"
+      throw error
+    }
+    this._apply(req)
   }
 
   /** Current spend report. */
@@ -93,13 +127,66 @@ export class SpendPolicy {
     }
   }
 
-  /** Serialise / restore. */
+  /** Spend ledger only. Config is stored by serialize(). */
   toJSON() {
-    return { ...this.state }
+    return {
+      day: this.state.day,
+      spentUsd: this.state.spentUsd,
+      payments: this.state.payments,
+      byProvider: { ...this.state.byProvider },
+    }
+  }
+
+  /**
+   * Full policy file: limits plus the ledger.
+   * toJSON() stays the ledger so a log of the policy object cannot be reloaded as a higher cap.
+   */
+  serialize() {
+    return {
+      dailyUsd: this.dailyUsd,
+      perRequestUsd: this.perRequestUsd,
+      maxPayments: this.maxPayments,
+      allowPayees: [...this.allowPayees],
+      blockContracts: [...this.blockContracts],
+      perProviderUsd: { ...this.perProviderUsd },
+      state: this.toJSON(),
+    }
+  }
+
+  static restore(data) {
+    if (!data || typeof data !== "object") return new SpendPolicy()
+    const legacyLedger = data.spentUsd != null && data.dailyUsd == null && data.state == null
+    if (legacyLedger) {
+      const policy = new SpendPolicy()
+      policy.load(data)
+      return policy
+    }
+    const policy = new SpendPolicy({
+      dailyUsd: data.dailyUsd,
+      perRequestUsd: data.perRequestUsd,
+      maxPayments: data.maxPayments,
+      allowPayees: data.allowPayees,
+      blockContracts: data.blockContracts,
+      perProviderUsd: data.perProviderUsd,
+    })
+    if (data.state && typeof data.state === "object") policy.load(data.state)
+    return policy
   }
 
   load(data) {
-    if (data && typeof data === "object") this.state = { ...this.state, ...data }
+    if (!data || typeof data !== "object") return this
+    const spent = Number(data.spentUsd)
+    const payments = Number(data.payments)
+    const byProvider =
+      data.byProvider && typeof data.byProvider === "object" && !Array.isArray(data.byProvider)
+        ? data.byProvider
+        : {}
+    this.state = {
+      day: typeof data.day === "string" ? data.day : this.state.day,
+      spentUsd: Number.isFinite(spent) ? spent : this.state.spentUsd,
+      payments: Number.isFinite(payments) ? payments : this.state.payments,
+      byProvider: { ...byProvider },
+    }
     return this
   }
 }
