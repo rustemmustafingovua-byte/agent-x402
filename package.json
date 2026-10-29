@@ -1,27 +1,33 @@
 {
   "name": "agent-x402",
-  "version": "0.1.0",
-  "description": "x402 micropayments for AI agents: pay per API call in USDC on Base or Solana, with budget guards, allowlists and no account required.",
+  "version": "0.2.0",
+  "description": "x402 micropayments for AI agents: pay per API call in USDC on Base, with a spend policy enforced outside the model.",
   "type": "module",
   "license": "MIT",
   "bin": {
     "ax402": "bin/ax402.js",
-    "ax402-mcp": "bin/ax402-mcp.js"
+    "ax402-mcp": "bin/ax402-mcp.js",
+    "ax402-serve": "bin/ax402-serve.js"
   },
+  "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=20"
   },
   "keywords": [
-    "x402", "usdc", "base", "solana", "ai-agents", "micropayments", "crypto", "payments", "mcp"
+    "x402", "usdc", "base", "ai-agents", "micropayments", "crypto", "payments", "mcp"
   ],
   "files": ["bin", "src", "README.md", "LICENSE"],
   "scripts": {
     "test": "node --test test/*.test.js",
     "build": "echo 'No build step required for agent-x402'",
-    "lint": "node --check src/index.js && node --check bin/ax402.js"
+    "lint": "node --check src/*.js && node --check bin/*.js && node --check test/*.js",
+    "prepublishOnly": "npm run lint && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -29,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/rustemmustafingovua-byte/agent-x402.git"
+    "url": "git+https://github.com/rustemmustafingovua-byte/agent-x402.git"
   },
   "bugs": {
     "url": "https://github.com/rustemmustafingovua-byte/agent-x402/issues"

@@ -1,7 +1,16 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { SpendPolicy } from "../src/policy.js"
-import { parseRequirements, pickOption, makeNonce, createAgentWallet, X402Client, domainFor } from "../src/index.js"
+import {
+  parseRequirements,
+  pickOption,
+  makeNonce,
+  createAgentWallet,
+  X402Client,
+  domainFor,
+  signPayment,
+  USDC_BASE,
+} from "../src/index.js"
 
 test("policy enforces per-request and daily caps", () => {
   const p = new SpendPolicy({ dailyUsd: 1, perRequestUsd: 0.3 })
@@ -108,6 +117,54 @@ test("SpendPolicy toJSON and load round-trip", () => {
   const p2 = new SpendPolicy()
   p2.load(json)
   assert.equal(p2.report().spentUsd, 0.5)
+})
+
+test("SpendPolicy serialize keeps the caps separate from the ledger", () => {
+  const p = new SpendPolicy({ dailyUsd: 2, perRequestUsd: 0.5, allowPayees: ["0xAbC"] })
+  p.commit({ amount: 0.5, network: "eip155:8453" })
+  const saved = p.serialize()
+  assert.equal(saved.dailyUsd, 2)
+  assert.equal(saved.state.spentUsd, 0.5)
+  const restored = SpendPolicy.restore(saved)
+  assert.equal(restored.dailyUsd, 2)
+  assert.equal(restored.report().spentUsd, 0.5)
+  assert.equal(restored.check({ amount: 0.5, payTo: "0xabc" }).allowed, true)
+  assert.equal(restored.check({ amount: 0.5, payTo: "0xdef" }).allowed, false)
+})
+
+test("a failed hold is released and does not consume the daily cap", () => {
+  const p = new SpendPolicy({ dailyUsd: 1, perRequestUsd: 1 })
+  const release = p.reserve({ amount: 0.4, network: "eip155:8453" })
+  assert.equal(p.check({ amount: 0.7 }).allowed, false)
+  release()
+  assert.equal(p.check({ amount: 0.7 }).allowed, true)
+})
+
+test("pickOption does not treat Base Sepolia as Base mainnet", () => {
+  const req = { accepts: [{ scheme: "exact", network: "eip155:84532", amount: "1" }] }
+  assert.equal(pickOption(req, {}), null)
+  assert.equal(pickOption(req, { network: "eip155:84532" }).amount, "1")
+})
+
+test("signPayment authorization is JSON-safe and bound to the server domain", async () => {
+  const wallet = createAgentWallet()
+  const signed = await signPayment({
+    account: wallet.account,
+    asset: USDC_BASE,
+    to: wallet.address,
+    amount: "10000",
+    validAfter: "10",
+    validBefore: "70",
+    nonce: makeNonce(),
+    network: "eip155:8453",
+    extra: { name: "USD Coin", version: "2" },
+  })
+  const encoded = JSON.stringify(signed.payload)
+  assert.equal(signed.authorization.value, "10000")
+  assert.equal(typeof signed.authorization.validAfter, "string")
+  const round = JSON.parse(encoded)
+  assert.equal(round.authorization.value, "10000")
+  assert.match(round.signature, /^0x[0-9a-fA-F]+$/)
 })
 
 test("X402Client.fetch rejects non-HTTP(S) URLs", async () => {

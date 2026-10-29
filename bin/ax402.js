@@ -1,122 +1,140 @@
 #!/usr/bin/env node
 /**
- * ax402 — agent-x402 CLI
+ * ax402 — buyer CLI.
  *
- *   ax402 new              create an agent wallet
- *   ax402 balance          USDC balance on Base
- *   ax402 quote <url>      what would this call cost? (pays nothing)
- *   ax402 pay <url> [json] call the endpoint, paying with x402 if asked
- *   ax402 policy           current spend report
+ *   ax402 new                 create an agent wallet (mode 600)
+ *   ax402 balance             USDC balance on Base
+ *   ax402 quote <url>         read the 402 price, pay nothing
+ *   ax402 pay <url> [json]    call the endpoint and pay if asked
+ *   ax402 policy              show the spend report
+ *
+ * The private key stays in ~/.config/agent-x402/wallet.json. It is never printed.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
-import { X402Client, SpendPolicy, createAgentWallet, usdcBalance } from "../src/index.js"
+import { createRequire } from "node:module"
+import { statSync } from "node:fs"
+import { X402Client, createAgentWallet, usdcBalance } from "../src/index.js"
+import { readPolicy, readWallet, walletFile, writePolicy, writeWallet } from "../src/config.js"
 
-// --- CLI shell: --help / --version -------------------------------------------
-const HELP = "ax402 — x402 micropayments for AI agents, with a spend policy.\n\nUSAGE\n  ax402 new                     create an agent wallet\n  ax402 balance                 USDC balance on Base\n  ax402 quote <url> [METHOD]    what would this call cost\n  ax402 pay <url> [json]        call the endpoint, paying with USDC\n  ax402 policy                  show the spend report\n\nCOMMANDS / OPTIONS\n  new      create a wallet in ~/.config/agent-x402/wallet.json (mode 600)\n  balance  read the USDC balance of the agent wallet\n  quote    perform the request, read the 402 terms, pay nothing\n  pay      perform the request and pay it (policy enforced before signing)\n  policy   show the daily spend, the number of payments and the per-model breakdown\n\nThe private key never leaves the process that signs. x402 payments are irreversible.\n\nMIT · https://github.com/rustemmustafingovua-byte"
-const VERSION = "0.1.0"
-if (process.argv.includes("--help") || process.argv.includes("-h")) {
-  console.log(HELP)
-  process.exit(0)
-}
-if (process.argv.includes("--version") || process.argv.includes("-V")) {
-  console.log(VERSION)
-  process.exit(0)
-}
+const version = createRequire(import.meta.url)("../package.json").version
+const HELP = `ax402 — x402 micropayments for AI agents, with a spend policy.
 
+USAGE
+  ax402 new [--force]          create an agent wallet
+  ax402 balance                USDC balance on Base
+  ax402 quote <url> [METHOD]   what this call would cost (pays nothing)
+  ax402 pay <url> [json]       call the endpoint and pay with USDC if asked
+  ax402 policy                 show today's spend
 
-const DIR = join(homedir(), ".config", "agent-x402")
-const KEY_FILE = join(DIR, "wallet.json")
-const POLICY_FILE = join(DIR, "policy.json")
+The private key stays in ${walletFile()} (mode 600) and is never printed.
+Payments are recorded against the policy only after the paid call succeeds.
+x402 payments are irreversible once a facilitator settles them.
+
+MIT · https://github.com/rustemmustafingovua-byte/agent-x402`
 
 const ok = (s) => `\x1b[32m${s}\x1b[0m`
 const bad = (s) => `\x1b[31m${s}\x1b[0m`
 const dim = (s) => `\x1b[2m${s}\x1b[0m`
 
-function loadWallet() {
-  if (!existsSync(KEY_FILE)) return null
-  return JSON.parse(readFileSync(KEY_FILE, "utf8"))
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  console.log(HELP)
+  process.exit(0)
 }
-function loadPolicy() {
-  const opts = existsSync(POLICY_FILE) ? JSON.parse(readFileSync(POLICY_FILE, "utf8")) : {}
-  return new SpendPolicy(opts)
+if (process.argv.includes("--version") || process.argv.includes("-V")) {
+  console.log(version)
+  process.exit(0)
 }
-function client() {
-  const w = loadWallet()
-  if (!w) {
-    console.log(bad("нет кошелька: ax402 new"))
+
+function requireWallet() {
+  const wallet = readWallet()
+  if (!wallet) {
+    console.error(bad("no wallet yet: ax402 new"))
     process.exit(1)
   }
-  const policy = loadPolicy()
-  return { c: new X402Client({ privateKey: w.privateKey, policy }), policy, w }
+  return wallet
 }
 
 const cmd = process.argv[2] || "balance"
+const force = process.argv.includes("--force")
 
-switch (cmd) {
-  case "new": {
-    const w = createAgentWallet()
-    mkdirSync(DIR, { recursive: true })
-    writeFileSync(KEY_FILE, JSON.stringify({ address: w.address, privateKey: w.privateKey }, null, 2))
-    chmodSync(KEY_FILE, 0o600)
-    console.log(ok(`кошелёк создан: ${w.address}`))
-    console.log(dim(`  ключ: ${KEY_FILE} (600)`))
-    console.log(dim("  пополните USDC (Base) и проверьте: ax402 balance"))
-    break
-  }
-  case "balance": {
-    const { w } = client()
-    const usdc = await usdcBalance(w.address)
-    console.log(`USDC (Base) ${w.address}: ${usdc}`)
-    break
-  }
-  case "quote": {
-    const { c } = client()
-    const url = process.argv[3]
-    const method = (process.argv[4] || "GET").toUpperCase()
-    if (!url) {
-      console.error("usage: ax402 quote <url> [METHOD]")
-      process.exit(1)
-    }
-    const res = await c.fetch(url, { method, body: method === "POST" ? {} : undefined, dryRun: true })
-    console.log(ok(`цена вызова: ${res.amountUsd} USDC (${res.option?.network})`))
-    console.log(dim(`  получатель: ${res.option?.payTo}`))
-    break
-  }
-  case "pay": {
-    const { c, policy } = client()
-    const url = process.argv[3]
-    const bodyJson = process.argv[4]
-    if (!url) {
-      console.error('usage: ax402 pay <url> [json body]')
-      process.exit(1)
-    }
-    let body
-    if (bodyJson) {
-      try {
-        body = JSON.parse(bodyJson)
-      } catch (e) {
-        console.error(bad("некорректный JSON: " + e.message))
+try {
+  switch (cmd) {
+    case "new": {
+      if (readWallet() && !force) {
+        console.error(bad("wallet already exists. Pass --force to replace it."))
         process.exit(1)
       }
+      const wallet = createAgentWallet()
+      writeWallet(wallet)
+      const mode = statSync(walletFile()).mode & 0o777
+      console.log(ok(`wallet created: ${wallet.address}`))
+      console.log(dim(`  key file: ${walletFile()} (mode ${mode.toString(8)})`))
+      console.log(dim("  send USDC on Base to that address, then run: ax402 balance"))
+      break
     }
-    try {
-      const res = await c.fetch(url, { method: body ? "POST" : "GET", body })
-      console.log(ok(`HTTP ${res.response.status}${res.paid ? ` (оплачено ${res.amountUsd} USDC)` : ""}`))
+    case "balance": {
+      const wallet = requireWallet()
+      const usdc = await usdcBalance(wallet.address)
+      console.log(`USDC (Base) ${wallet.address}: ${usdc}`)
+      break
+    }
+    case "quote": {
+      const url = process.argv[3]
+      const method = (process.argv[4] || "GET").toUpperCase()
+      if (!url) {
+        console.error("usage: ax402 quote <url> [METHOD]")
+        process.exit(1)
+      }
+      const wallet = readWallet()
+      const policy = readPolicy()
+      const client = new X402Client({ privateKey: wallet?.privateKey, policy })
+      const res = await client.fetch(url, { method, body: method === "POST" ? {} : undefined, dryRun: true })
+      if (!res.option) {
+        console.log(`no payment required (HTTP ${res.response.status})`)
+        if (res.body) console.log(String(res.body).slice(0, 2000))
+        break
+      }
+      console.log(ok(`price: ${res.amountUsd} USDC (${res.option.network})`))
+      console.log(dim(`  payee: ${res.option.payTo}`))
+      console.log(dim(`  asset: ${res.option.asset}`))
+      break
+    }
+    case "pay": {
+      const url = process.argv[3]
+      const bodyJson = process.argv[4]
+      if (!url) {
+        console.error("usage: ax402 pay <url> [json body]")
+        process.exit(1)
+      }
+      let body
+      if (bodyJson) {
+        try {
+          body = JSON.parse(bodyJson)
+        } catch (error) {
+          console.error(bad("invalid JSON: " + error.message))
+          process.exit(1)
+        }
+      }
+      const wallet = requireWallet()
+      const policy = readPolicy()
+      const client = new X402Client({ privateKey: wallet.privateKey, policy })
+      const res = await client.fetch(url, { method: body ? "POST" : "GET", body })
+      if (res.paid) writePolicy(policy)
+      const paid = res.paid ? ` (paid ${res.amountUsd} USDC)` : ""
+      console.log(ok(`HTTP ${res.response.status}${paid}`))
       console.log(res.body?.slice(0, 4000) ?? "")
       console.log(dim(JSON.stringify(policy.report(), null, 2)))
-    } catch (e) {
-      console.error(bad(`${e.code ?? "error"}: ${e.message}`))
-      process.exit(1)
+      if (!res.paid || !res.response.ok) process.exit(1)
+      break
     }
-    break
+    case "policy": {
+      console.log(JSON.stringify(readPolicy().report(), null, 2))
+      break
+    }
+    default:
+      console.error(HELP)
+      process.exit(1)
   }
-  case "policy": {
-    const { policy } = client()
-    console.log(JSON.stringify(policy.report(), null, 2))
-    break
-  }
-  default:
-    console.log("ax402 <new|balance|quote|pay|policy>")
+} catch (error) {
+  console.error(bad(`${error.code ?? "error"}: ${error.message}`))
+  process.exit(1)
 }
