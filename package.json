@@ -20,7 +20,7 @@
   "files": ["bin", "src", "README.md", "LICENSE"],
   "scripts": {
     "test": "node --test test/*.test.js",
-    "build": "node -e "console.log('No build step required for agent-x402')"",
+    "build": "echo 'No build step required for agent-x402'",
     "lint": "node --check src/index.js && node --check bin/ax402.js"
   },
   "dependencies": {
