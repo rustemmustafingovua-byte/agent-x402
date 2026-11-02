@@ -49,9 +49,17 @@ export function parseRequirements(header) {
 
 /** Pick the payment option we can satisfy. */
 export function pickOption(requirements, { network } = {}) {
-  const accepts = requirements?.accepts || []
-  if (network) return accepts.find((a) => (a.network || "").includes(network)) || null
-  return accepts.find((a) => (a.network || "").includes("8453")) || accepts[0] || null
+  const accepts = requirements?.accepts || [];
+  if (network) {
+    return (
+      accepts.find((a) => {
+        const n = (a.network || "").toLowerCase();
+        const t = network.toLowerCase();
+        return n === t || n.includes(t) || t.includes(n);
+      }) || null
+    );
+  }
+  return accepts.find((a) => (a.network || "").includes("8453")) || accepts[0] || null;
 }
 
 /** EIP-3009 domain for a token. */
