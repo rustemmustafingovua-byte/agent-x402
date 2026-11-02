@@ -63,3 +63,39 @@ console.log('Paid:', res.paid, 'Amount USD:', res.amountUsd);
 Bug reports and feature requests are welcome on the [Issues](https://github.com/rustemmustafingovua-byte/agent-x402/issues) page.
 
 MIT © rustemmustafingovua-byte
+
+
+---
+
+## 🌐 Multi-Chain Support (Base & Solana)
+
+agent-x402 supports dual payment rails across Base (EVM EIP-3009) and Solana (SPL tokens):
+
+| Network | CAIP-2 Identifier | Asset | Default Mint / Contract |
+| :--- | :--- | :--- | :--- |
+| **Base** | `eip155:8453` | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| **Solana** | `solana:5eykt4UsFv8P8NJdTREY1vzqKqZKvdp` | USDC | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+
+### Solana SPL Signing Example
+
+```js
+import { 
+  createSolanaAgentWallet, 
+  signSolanaPayment, 
+  pickOption,
+  SOLANA_MAINNET, 
+  USDC_SOLANA 
+} from "agent-x402"
+
+const agentWallet = createSolanaAgentWallet()
+const selectedOption = pickOption(requirements, { network: SOLANA_MAINNET })
+
+const payment = await signSolanaPayment({
+  keypair: agentWallet.keypair,
+  to: selectedOption.payTo,
+  amount: selectedOption.amount,
+  mint: USDC_SOLANA,
+  validAfter: Math.floor(Date.now() / 1000) - 30,
+  validBefore: Math.floor(Date.now() / 1000) + 3600
+})
+```

@@ -15,9 +15,22 @@
     "node": ">=20"
   },
   "keywords": [
-    "x402", "usdc", "base", "solana", "ai-agents", "micropayments", "crypto", "payments", "mcp"
+    "x402",
+    "usdc",
+    "base",
+    "solana",
+    "ai-agents",
+    "micropayments",
+    "crypto",
+    "payments",
+    "mcp"
   ],
-  "files": ["bin", "src", "README.md", "LICENSE"],
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node --test test/*.test.js",
     "build": "echo 'No build step required for agent-x402'",
@@ -25,6 +38,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
+    "tweetnacl": "^1.0.3",
     "viem": "^2.57.0"
   },
   "repository": {
