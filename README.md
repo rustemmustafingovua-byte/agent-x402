@@ -43,6 +43,37 @@ console.log('Paid:', res.paid, 'Amount USD:', res.amountUsd);
 
 ---
 
+## MCP Server (OpenCode Configuration)
+
+Run `agent-x402` as a local stdio MCP server so agents can check balance, quote endpoints, enforce spend policies, and pay for 402 API calls without shell access. The wallet private key stays in `~/.config/agent-x402/wallet.json` (mode `0600`) inside the host process and is never returned to the model.
+
+Add this to `opencode.json`:
+
+```json
+{
+  "mcp": {
+    "agent-x402": {
+      "type": "local",
+      "command": ["npx", "-y", "agent-x402", "ax402-mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+If installed globally (`npm i -g agent-x402`), use `"command": ["ax402-mcp"]`.
+
+### Exposed Tools
+
+| Tool | Description |
+| --- | --- |
+| `x402-balance` | Return the wallet address and Base USDC balance without exposing the private key. |
+| `x402-quote` | Probe an endpoint in dry-run mode, parse the `402` terms, and report price + policy eligibility. |
+| `x402-pay` | Call an endpoint and sign an x402 USDC payment only if `SpendPolicy` approves it; persists spend state to `~/.config/agent-x402/policy.json`. |
+| `x402-policy` | Inspect (`action: "show"`) or update (`action: "set"`) daily caps, per-request caps, payment limits, payee allow-lists, blocked contracts, and per-network caps. |
+
+---
+
 ## 💰 Монетизация
 
 - **Pay-per-call API**: продавайте доступ к своим API через x402 — $0 за подписку, оплата за вызов в USDC
